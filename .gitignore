@@ -1,0 +1,10 @@
+runs/
+runs_smoke/
+runs_pilot/
+bench/*.log
+bench/*.jsonl
+bench/*.err
+__pycache__/
+*.pyc
+docs/media/video/
+.site_local/
