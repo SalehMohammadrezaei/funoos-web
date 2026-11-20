@@ -57,13 +57,14 @@ Rules applied: only parameters the experiment is about are swept; everything els
 | 2 | Airfoil lift (lbm_airfoil) | angle at Re 400 | -14, -6, 0, 6, 14, 20 | 6 | lift sign change through zero, linear range, stall at high angle (circulation-based cl) |
 | 3 | Cycling and drafting (lbm_peloton) | reynolds | 200, 500, 1000 | 3 | how the wake shelter changes with Re; speed fixed at preset 0.09 |
 | 4 | Flow around text (lbm_name) | reynolds, text "Funoos" | 60, 220, 800 | 3 | same text, laminar to unsteady; custom text needs the app |
-| 5 | Car silhouette (lbm_f1) | reynolds | 100, 320, 1000 | 3 | wake and drag of a bluff car body vs Re |
+| 5 | Car silhouette (lbm_f1) | reynolds | 40, 320, 1200 | 3 | wake and drag of a bluff car body vs Re (full slider range: 100 and 1000 looked alike) |
 | 6 | Porous flow (porous_phi60) | porosity x grain | {0.45, 0.6, 0.75, 0.85} x {0.02, 0.035, 0.07} | 12 | Kozeny-Carman trend: k grows with porosity cubed and grain squared; full grid so any pair exists |
 | 7 | Tracer through rock (tracer_pulse) | peclet x injection | {0.5, 2, 20, 100, 400} x {Pulse, Continuous supply} | 10 | diffusion-dominated to advection-dominated; both injection modes because arrival-time and dispersion diagnostics differ |
 | 8 | Rising smoke (ns_smoke) | buoyancy x confinement | {0.001, 0.0022, 0.005} x {0, 7, 18} | 9 | plume speed vs buoyancy; vorticity confinement from off to strong shows what is physics and what is model |
 | 9 | Rayleigh-Taylor (ns_rt) | atwood x modes | {0.2, 0.5, 0.7, 1.0} x {0, 3} | 8 | growth rate rises with Atwood number; single-mode vs multimode mixing width |
 | 10 | Candle flame (ns_flame) | zst x buoyancy | {0.10, 0.16, 0.25} x {0.012, 0.025} | 6 | stoichiometric mixture fraction sets flame position; buoyancy sets flicker and height |
-| 11 | Heated layer (ns_rb) | buoyancy x viscosity | {0, 0.0015, 0.003, 0.006, 0.012} x {0.0003, 0.0006, 0.0012} | 15 | Rayleigh number from 0 to 2.4e10 through onset at 657.5; Nusselt vs Ra is the key plot; buoyancy 0 is the conduction control |
+| 11 | Heated layer (ns_rb) | buoyancy | 0, 0.0015, 0.003, 0.006, 0.012 | 5 | buoyancy 0 is the conduction control; every nonzero value is far above onset (Ra 1e9 to 1e11 in grid units at High), so buoyancy shows as onset time and regular columns vs turbulence. Viscosity was first swept as well ({0.0003, 0.0006, 0.0012}) but leaves the clips identical over its whole slider range (Prandtl << 1), so it was dropped |
+| | | thermal diffusivity at buoyancy 0.006 | 0.005, 0.02, 0.1 | 3 | sharp thin plumes vs thick smooth ones |
 | 12 | Chimney plume (ns_chimney) | wind x buoyancy | {0, 0.15, 0.3, 0.55} x {0.002, 0.005, 0.01} | 12 | plume rise vs bending; wind 0 is a vertical plume control |
 | 13 | Sod shock tube (euler_sod) | resolution | Low, Medium, High, Ultra | 4 | only free parameter is grid; density vs exact solution shows convergence |
 | 14 | Open-air blast (euler_blast) | pressure | 20, 50, 140, 400 | 4 | shock radius vs time and overpressure ratio |
@@ -81,12 +82,13 @@ Rules applied: only parameters the experiment is about are swept; everything els
 | 24 | Kelvin-Helmholtz (spec_kh) | viscosity x thickness | {1e-5, 8e-5, 4e-4} x {0.015, 0.033, 0.08} | 9 | thinner layer grows faster; viscosity damps small scales |
 | 25 | Decaying turbulence (spec_decay) | viscosity | 1e-5, 8e-5, 4e-4 | 3 | energy and enstrophy decay rates vs viscosity |
 | | | seed at 8e-5 | 2 | 1 | shows statistics are the same for a different realisation |
-| 26 | Taylor-Green (spec_tg) | viscosity | 5e-5, 2e-4, 4e-4 | 3 | exact exponential decay exp(-2 nu k^2 t) to compare against |
-| | | perturbation at 4e-4 | 0.005, 0.2 | 2 | when the vortex array breaks symmetry |
-| 27 | Dye transport (mix_bands) | stir x diffusion | {0, 0.5, 1} x {0, 1e-4, 1e-3} | 9 | stirring vs molecular diffusion; stir 0 and D 0 is the do-nothing control |
+| 26 | Taylor-Green (spec_tg) | viscosity | 1e-5, 1e-4, 4e-4 | 3 | exact exponential decay exp(-2 nu k^2 t) to compare against; the clip looks the same for all (0.2 to 8 % energy loss), the decay plot is the result. The perturbation sweep was dropped: the scene ignores that parameter |
+| 27 | Dye transport (mix_bands) | stir x diffusion | {0, 0.3, 1} x {0, 3e-4, 1e-3} | 9 | stirring vs molecular diffusion; stir 0 and D 0 is the do-nothing control (first choice 1e-4 looked the same as no diffusion, 0.5 like 1) |
 | | | bands at preset | 2, 14 | 2 | initial scale of the dye |
 | 28 | Gray-Scott (rd_spots) | pattern | Spots, Stripes, Maze, Mitosis, Coral, Waves | 6 | the six named Pearson regimes |
 | | | Custom F x k | {0.03, 0.055} x {0.06, 0.065} | 4 | shows how a small move in F, k changes regime |
+
+Visibility review (2026-11-19): every sweep was checked on contact sheets and frame strips of the finished clips, so that each choice on a page looks different from its neighbours. Rows 5, 26 and 27 were changed as noted; car, cycling and blast-and-obstacles pages open on the Speed view, where their cases differ most; blob-impact and tracer posters are taken early in the clip, where the event is. The NS pages were reviewed when their runs finished (2026-11-20): smoke, flame and chimney choices all differ; Rayleigh-Taylor posters are taken at 30 % and heated-layer posters at 12 %, because both settle into the same well-mixed state later; row 11 was changed as noted.
 
 Totals: **204 runs**, of which 50 are incompressible NS (the expensive ones), 22 LBM, 132 fast solvers. Each run stores all its views (3 to 4), so about 720 clips.
 
@@ -105,8 +107,8 @@ Per sweep, after the batch (trend checks, these are the physics):
 
 - Cylinder: Strouhal rises from 0 (Re 40, no shedding) to about 0.18 to 0.21 for Re 180 to 1200. Airfoil: cl changes sign through 0 degrees and is monotone for |angle| <= 14.
 - Porous: permeability increases with porosity and with grain squared, monotone on the grid. Tracer: mass balance within 2 %; dispersion over molecular rises with Pe; t50 arrival falls with Pe for pulse injection.
-- Heated layer: Nusselt about 1 for Ra below 657 (buoyancy 0 and the two lowest Ra), rising monotonically above. RT: mixing width grows with Atwood number at fixed modes.
-- Smoke, flame, chimney: final kinetic energy increases with buoyancy at fixed confinement or wind.
+- Heated layer: Nusselt 1 with buoyancy off, rising with buoyancy above. RT: mixing width grows with Atwood number at fixed modes. (As run: the mixing zone fills the box at every Atwood number, so the check uses the time to reach half the box, which scales as A^(-1/2).)
+- Smoke, flame, chimney: kinetic energy increases with buoyancy at fixed confinement or wind. (As run: the mean over the second half of the run, since a turbulent plume's final frame fluctuates; the chimney is judged in calm air, since in a crosswind the kinetic energy is mostly the wind's.)
 - Sod: density error falls with resolution (roughly first order). Blast: final shock radius increases with pressure. Shock-bubble: ke_final increases with Mach.
 - SPH: still water has zero speed-limiter events at all particle counts; dam-break front position scales with sqrt(g h); slosh amplitude peaks nearest the natural period.
 - KH and decay: enstrophy at the end decreases with viscosity; TG kinetic energy decay matches exp(-2 nu k^2 t) to a few percent (quantitative).

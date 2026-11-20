@@ -42,7 +42,7 @@ def _even_scale(w, h):
     return max(W, 2), max(H, 2)
 
 
-def encode(result, view, cmap, out_mp4, out_poster):
+def encode(result, view, cmap, out_mp4, out_poster, poster_at=cases.POSTER_AT_DEFAULT):
     frames = result.render(view, cmap)                     # list: needed twice (clip and poster)
     n = len(frames); h, w = frames[0].shape[:2]
     W, H = _even_scale(w, h)
@@ -60,7 +60,7 @@ def encode(result, view, cmap, out_mp4, out_poster):
     p.stdin.close(); err = p.stderr.read().decode(errors="replace"); p.wait()
     if p.returncode != 0:
         raise RuntimeError("ffmpeg: " + err[-300:])
-    poster = frames[int(0.7 * (n - 1))]
+    poster = frames[int(poster_at * (n - 1))]
     from PIL import Image
     im = Image.fromarray(poster)
     if im.width != W or im.height != H:
@@ -68,7 +68,7 @@ def encode(result, view, cmap, out_mp4, out_poster):
     im.save(out_poster, "WEBP", quality=82, method=6)
     # still water or a tracer before injection may hold the first frames; the clip must change somewhere
     const = n > 2 and np.array_equal(frames[0], frames[-1]) and np.array_equal(frames[0], frames[n // 2])
-    return {"view": view, "mp4": out_mp4.name, "poster": out_poster.name, "frames": n, "width": W, "height": H,
+    return {"view": view, "mp4": out_mp4.name, "poster": out_poster.name, "poster_at": poster_at, "frames": n, "width": W, "height": H,
             "seconds": round(n / FPS, 2), "bytes": out_mp4.stat().st_size, "all_frames_identical": bool(const),
             "frames_skipped": bad}
 
@@ -105,6 +105,40 @@ def jsonable(x):
     return str(x)
 
 
+def complete_metrics(metrics, series):
+    """Add the measurements the app's postproc.metrics() drops, taken from its own series.
+
+    In Funoos 1.3.2 metrics() opens a second if-chain with the particle kind (the speed-limiter
+    count), so its later SPH branch never runs and peak and final kinetic energy and the particle
+    count are missing. series() computes the same quantities with the same function
+    (_sph_energy), so they are read from there. Works on the JSON forms, so finished runs can be
+    completed from series.json without solving again.
+    """
+    ke, n = series.get("kinetic_energy_J_per_m"), series.get("particles")
+    if ke and n and "ke_peak" not in metrics:
+        ke = [x for x in ke if x is not None]; n = [x for x in n if x is not None]
+        if ke and n:
+            metrics.update(ke_peak=max(ke), ke_final=ke[-1], particles_final=int(n[-1]))
+    return metrics
+
+
+def metrics_finite(metrics):
+    # the app reports NaN for the shedding frequency when no clean peak exists: that is information, not a failure
+    return all(isinstance(x, (int, float)) and math.isfinite(x) for k, x in metrics.items() if k != "shedding_frequency_per_step")
+
+
+def frames_change(views, static=False):
+    """The clip must move: catches a solver or renderer stuck on one frame.
+
+    At least one view has to change; a single still view is allowed, because streamlines of a
+    steady or frozen flow (the tracer runs on a fixed flow field, a porous sample settles to
+    steady Darcy flow) are the same in every frame by construction. A declared do-nothing
+    control (cases.EXPECT_STATIC) must instead stay still in every view.
+    """
+    still = [vw["all_frames_identical"] for vw in views]
+    return all(still) if static else not all(still)
+
+
 def main(cid, runs):
     out = Path(runs) / cid; out.mkdir(parents=True, exist_ok=True)
     case = next(c for c in cases.build() if c["id"] == cid)
@@ -122,12 +156,13 @@ def main(cid, runs):
         level, notes = r.quality
         meta["result"] = jsonable(r.meta())
         meta["quality"] = {"level": level, "notes": notes}
-        meta["metrics"] = jsonable(postproc.metrics(r))
+        series = jsonable(postproc.series(r))
+        meta["metrics"] = complete_metrics(jsonable(postproc.metrics(r)), series)
         meta["derived"] = jsonable(schema.derived(ex, params))
         meta["layers"] = jsonable(catalog.scene_layers(scene_key))
         meta["eq"] = engine.META.get(ex, {}).get("eq")
         meta["method_label"] = engine.META.get(ex, {}).get("method", "")
-        (out / "series.json").write_text(json.dumps(jsonable(postproc.series(r))))
+        (out / "series.json").write_text(json.dumps(series))
         plots = []
         for i, (title, svg, explain) in enumerate(postproc.plots_svg(r)):
             f = out / f"plot_{i}.svg"; f.write_text(svg)
@@ -137,20 +172,19 @@ def main(cid, runs):
         cmap = s.get("cmap") or engine.DEFCMAP[r.kind]
         meta["cmap"] = cmap
         views = []
+        poster_at = cases.POSTER_AT.get(case["experiment"], cases.POSTER_AT_DEFAULT)
         for view in r.views:
             sl = _slug(view)
-            views.append(encode(r, view, cmap, out / f"{sl}.mp4", out / f"{sl}.webp"))
+            views.append(encode(r, view, cmap, out / f"{sl}.mp4", out / f"{sl}.webp", poster_at))
         meta["views"] = views
         timing["render_s"] = round(time.time() - t2, 1)
         checks = {
             "solver_finished": True,
             "fields_finite": raw_finite(r),
             "quality_not_incomplete": level != "incomplete",
-            # the app reports NaN for the shedding frequency when no clean peak exists: that is information, not a failure
-            "metrics_finite": all(isinstance(x, (int, float)) and math.isfinite(x) for k, x in meta["metrics"].items()
-                                  if k != "shedding_frequency_per_step"),
+            "metrics_finite": metrics_finite(meta["metrics"]),
             "clips_written": all(vw["bytes"] > 0 for vw in views),
-            "frames_change": not any(vw["all_frames_identical"] for vw in views),
+            "frames_change": frames_change(views, case.get("static")),
             "no_frames_skipped": all(vw["frames_skipped"] == 0 for vw in views),
             "validation_clean": not v.errors and not v.warnings,
         }
@@ -165,5 +199,27 @@ def main(cid, runs):
     return 0 if meta["ok"] else 1
 
 
+def reposter(runs):
+    """Re-cut the posters of finished runs at cases.POSTER_AT from their clips (no solving)."""
+    import io
+    from PIL import Image
+    n = 0
+    for m in sorted(Path(runs).glob("*/meta.json")):
+        d = json.loads(m.read_text())
+        frac = cases.POSTER_AT.get(d["case"].get("experiment"), cases.POSTER_AT_DEFAULT)
+        if not d.get("ok") or all(v.get("poster_at", cases.POSTER_AT_DEFAULT) == frac for v in d["views"]):
+            continue
+        for v in d["views"]:
+            t = int(frac * (v["frames"] - 1)) / FPS
+            png = subprocess.run([render._ffmpeg(), "-v", "error", "-ss", f"{t:.3f}", "-i", str(m.parent / v["mp4"]), "-frames:v", "1",
+                                  "-f", "image2pipe", "-vcodec", "png", "-"], capture_output=True, check=True).stdout
+            Image.open(io.BytesIO(png)).convert("RGB").save(m.parent / v["poster"], "WEBP", quality=82, method=6)
+            v["poster_at"] = frac
+        m.write_text(json.dumps(d, indent=1, ensure_ascii=False)); n += 1
+    print(f"posters re-cut for {n} runs")
+
+
 if __name__ == "__main__":
+    if sys.argv[1] == "--posters":
+        reposter(sys.argv[2]); sys.exit(0)
     sys.exit(main(sys.argv[1], sys.argv[2]))
