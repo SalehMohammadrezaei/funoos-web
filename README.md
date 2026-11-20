@@ -29,13 +29,23 @@ Posters, plots and the per-experiment JSON manifests live in `docs/`.
 
 ```bash
 # with the Funoos source at the path set in tools/cases.py and its Python environment active
-python tools/batch.py runs                      # the whole library (one night on a workstation)
+python tools/batch.py runs --pin ccd           # the whole library (about a day on a 96-core workstation)
 python tools/trends.py runs CHECKS.md
 python tools/build_site.py runs docs --media-base https://github.com/SalehMohammadrezaei/funoos-web/releases/download/media-v1/
+python tools/upload_media.py runs media-v1 <file holding a GitHub token>   # clips to the release; restartable
 ```
 
 Without `--media-base` the clips are copied into `docs/media/video/` for a local preview
 (`python -m http.server` inside `docs/`).
+
+The batch keeps solver scratch (raw frames, up to about 0.5 GB per job) in `runs/_scratch/`,
+not `/tmp`, and runs at most `--ns-slots` incompressible Navier-Stokes jobs at once: their
+pressure solve is limited by memory bandwidth, so running dozens together makes each one many
+times slower. `--group ns` or `--group other` runs one part of the library;
+`bench/ns_conc.py` measures NS throughput against the number of concurrent jobs. On a
+Threadripper PRO 7995WX, 12 jobs of 8 threads gave 3.5 times the throughput of one job, with
+or without pinning each job to a chiplet. The Navier-Stokes runs at High took 18.4 hours there;
+everything else together takes under 2 hours.
 
 ## Licence
 

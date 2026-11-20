@@ -40,6 +40,10 @@ ACC = {"Lattice–Boltzmann": "#5b86f0", "Incompressible Navier–Stokes": "#e0a
 SHORT = {"Incompressible Navier–Stokes": "Navier–Stokes", "Smoothed-Particle Hydrodynamics": "SPH"}
 STATUS_SHORT = {"analytical": "Analytical", "numerical": "Numerical", "qualitative": "Qualitative"}
 START_HERE = ["cylinder_wake", "dam_break", "kelvin_helmholtz", "rising_smoke", "gray_scott"]
+# The view a page opens on (and its poster), where the app's first view hides the differences
+# between cases: vorticity of a body on the ground is dominated by its boundary layer, and the
+# Schlieren lines of a blast among buildings are faint; speed shows the wake and the shock.
+DEFAULT_VIEW = {"car_silhouette": "Speed", "cycling_drafting": "Speed", "blast_obstacles": "Speed"}
 E = html.escape
 
 
@@ -143,11 +147,22 @@ def experiment_manifest(e, lib, runs, out, media_base):
         if c["sweep"] != "Presets of the app":
             sw["params"] = list(dict.fromkeys(sw["params"] + list(c["overrides"])))
         sw["cases"].append({"id": c["id"], "label": rec["label"], "values": values})
-        for al in c["aliases"]:                                  # a preset that equals a sweep point: list it under the presets too
-            if al["sweep"] == "Presets of the app":
+        for al in c["aliases"]:                                  # one run listed in every place it belongs
+            if al["sweep"] == "Presets of the app":              # a sweep point that equals a preset
                 asc = catalog.scene(al["scene"])
                 sweeps.setdefault("Presets of the app", {"name": "Presets of the app", "params": [], "cases": []})["cases"].append(
                     {"id": c["id"], "label": f"{al['label']} ({asc['name']})", "values": {}})
+            else:                                                # a preset that equals a sweep point
+                sw2 = sweeps.setdefault(al["sweep"], {"name": al["sweep"], "params": [], "cases": []})
+                sw2["params"] = list(dict.fromkeys(sw2["params"] + list(al["overrides"])))
+                sw2["cases"].append({"id": c["id"], "label": al["label"], "values": dict(al["overrides"])})
+    grid = {name: (names, values) for name, names, values in cases.SWEEPS.get(e["id"], [])}
+    for name, sw in sweeps.items():                              # grid order, so the dropdowns read in order
+        if name in grid:
+            names, values = grid[name]
+            idx = {tuple(v): i for i, v in enumerate(values)}
+            sw["cases"].sort(key=lambda k: idx.get(tuple(k["values"].get(n) for n in names), len(idx)))
+        sw["fixed_text"] = fixed_text(ex, sw["params"])
     # presets first, in the app's order
     order = {k: i for i, (k, _l) in enumerate(e["presets"])}
     pre = sweeps.get("Presets of the app")
@@ -157,7 +172,8 @@ def experiment_manifest(e, lib, runs, out, media_base):
             if k["id"] not in seen:
                 seen.add(k["id"]); uniq.append(k)
         pre["cases"] = sorted(uniq, key=lambda k: order.get(next((c["scene"] for c in exp_cases if c["id"] == k["id"]), ""), 99))
-    sweep_list = ([pre] if pre else []) + [s for n, s in sweeps.items() if n != "Presets of the app"]
+    sweep_list = ([pre] if pre else []) + sorted((s for n, s in sweeps.items() if n != "Presets of the app"),
+                                                 key=lambda s: list(grid).index(s["name"]) if s["name"] in grid else len(grid))
     rep_id = next((c["id"] for c in exp_cases if c["scene"] == e["representative"] and c["sweep"] == "Presets of the app"), exp_cases[0]["id"])
     scenes = {}
     for c in exp_cases:
@@ -169,7 +185,8 @@ def experiment_manifest(e, lib, runs, out, media_base):
             scenes[c["scene"]] = L
     rep = catalog.scene(e["representative"])
     man = {"id": e["id"], "name": e["name"], "question": e["question"], "exhibit": ex, "phenomenon": rep["phenomenon"], "method": rep["method"],
-           "method_label": engine.META.get(ex, {}).get("method", ""), "representative": rep_id, "cases": recs, "sweeps": sweep_list,
+           "method_label": engine.META.get(ex, {}).get("method", ""), "representative": rep_id, "default_view": DEFAULT_VIEW.get(e["id"]),
+           "cases": recs, "sweeps": sweep_list,
            "scenes": scenes, "param_spec": param_spec(ex), "readouts": READOUTS,
            "compare": [{"a": _case_for_scene(exp_cases, a), "b": _case_for_scene(exp_cases, b) if b else None, "text": t} for a, b, t in e.get("compare", [])],
            "poster_base": "../media/posters/", "plot_base": "../media/plots/", "video_base": media_base or "../media/video/",
@@ -177,6 +194,10 @@ def experiment_manifest(e, lib, runs, out, media_base):
     (out / "data").mkdir(exist_ok=True)
     (out / "data" / f"{e['id']}.json").write_text(json.dumps(man, ensure_ascii=False))
     return man
+
+
+def opening_view(case, man):
+    return next((v for v in case["views"] if v["view"] == man.get("default_view")), case["views"][0])
 
 
 def _case_for_scene(exp_cases, scene_key):
@@ -190,7 +211,7 @@ def _case_for_scene(exp_cases, scene_key):
 
 def experiment_page(man, out):
     e = man; acc = ACC.get(e["method"], "#5b86f0")
-    rep = next(c for c in e["cases"] if c["id"] == e["representative"]); v0 = rep["views"][0]
+    rep = next(c for c in e["cases"] if c["id"] == e["representative"]); v0 = opening_view(rep, e)
     head = (f'<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/{KATEX}/katex.min.css">'
             f'<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/{KATEX}/katex.min.js" onload="window.dispatchEvent(new Event(\'katex-ready\'))"></script>')
     body = f"""
@@ -265,7 +286,7 @@ def home(mans, out, n_cases):
     exp_of = {m["id"]: m for m in mans}
 
     def card(m):
-        rep = next(c for c in m["cases"] if c["id"] == m["representative"]); v0 = rep["views"][0]
+        rep = next(c for c in m["cases"] if c["id"] == m["representative"]); v0 = opening_view(rep, m)
         acc = ACC.get(m["method"], "#5b86f0"); method = SHORT.get(m["method"], m["method"])
         hay = E(" ".join([m["name"], m["question"], m["phenomenon"], m["method"], m["method_label"]] + [c["label"] for c in m["cases"]]).lower())
         return (f'<a class="gcard" href="experiments/{m["id"]}.html" data-phen="{E(m["phenomenon"])}" data-hay="{hay}">'
@@ -349,6 +370,10 @@ def main():
     ap = argparse.ArgumentParser(); ap.add_argument("runs"); ap.add_argument("out"); ap.add_argument("--media-base", default="")
     a = ap.parse_args(); MEDIA_BASE = a.media_base
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
+    # generated folders are rebuilt from scratch, so a case or experiment that left the library
+    # does not linger in the site
+    for sub in ("data", "experiments", "media/posters", "media/plots", "media/video"):
+        shutil.rmtree(out / sub, ignore_errors=True)
     (out / "assets").mkdir(exist_ok=True)
     for f in ("app.css", "web.css", "web.js", "favicon.svg"):
         shutil.copy2(SITE / "assets" / f, out / "assets" / f)

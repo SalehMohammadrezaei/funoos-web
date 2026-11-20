@@ -59,17 +59,21 @@ function caseById(id) { return D.cases.find(c => c.id === id); }
 
 function initExperiment() {
   const root = $("#exp"); if (!root) return;
-  fetch(root.dataset.manifest).then(r => r.json()).then(d => { D = d; buildControls(); const start = location.hash.slice(1); selectCase(caseById(start) ? start : D.representative, true); initTransport(); initTabs(); })
+  fetch(root.dataset.manifest).then(r => r.json()).then(d => { D = d; VIEW = d.default_view || null; buildControls(); const start = location.hash.slice(1); selectCase(caseById(start) ? start : D.representative, true); initTransport(); initTabs(); })
     .catch(e => { $("#s-status").textContent = "The case data could not be loaded (" + e + ")."; });
 }
 
-function sweepOf(c) { return D.sweeps.find(s => s.name === c.sweep); }
+// A run can sit in more than one sweep (a preset that is also a grid point), so the sweep being
+// explored is tracked on its own and a case's values are read from its entry in that sweep.
+let SW = null;
+function sweepOf(c) { return D.sweeps.find(s => s.name === SW && s.cases.some(k => k.id === c.id)) || D.sweeps.find(s => s.name === c.sweep); }
+function valuesIn(s, c) { const k = s.cases.find(k => k.id === c.id); return k ? k.values : c.values; }
 function buildControls() {
   const box = $("#ctrl"); box.innerHTML = "";
   const f = el("div", "field"); const lab = el("label", null, "Explore"); lab.htmlFor = "c-sweep"; f.append(lab);
   const sel = el("select"); sel.id = "c-sweep";
   for (const s of D.sweeps) { const o = el("option", null, s.name); o.value = s.name; sel.append(o); }
-  sel.onchange = () => { const s = D.sweeps.find(x => x.name === sel.value); selectCase(s.cases[0].id); };
+  sel.onchange = () => { const s = D.sweeps.find(x => x.name === sel.value); selectCase(s.cases[0].id, false, s.name); };
   f.append(sel); box.append(f);
   const pbox = el("div", "ctrlgrid"); pbox.id = "c-params"; box.append(pbox);
 }
@@ -79,30 +83,33 @@ function buildParamSelects(c) {
     const f = el("div", "field"); const lab = el("label", null, "Preset"); lab.htmlFor = "c-preset"; f.append(lab);
     const sel = el("select"); sel.id = "c-preset";
     for (const k of s.cases) { const o = el("option", null, k.label); o.value = k.id; if (k.id === c.id) o.selected = true; sel.append(o); }
-    sel.onchange = () => selectCase(sel.value); f.append(sel); pbox.append(f); return;
+    sel.onchange = () => selectCase(sel.value, false, s.name); f.append(sel); pbox.append(f); return;
   }
+  const cur = valuesIn(s, c);
   for (const p of s.params) {
     const spec = D.param_spec[p] || { label: p };
     const f = el("div", "field"); const lab = el("label", null, spec.label || p); lab.htmlFor = "c-" + p;
     if (spec.units) lab.append(el("span", "units", spec.units)); f.append(lab);
     const sel = el("select"); sel.id = "c-" + p;
     const vals = [...new Set(s.cases.map(k => JSON.stringify(k.values[p])))].map(x => JSON.parse(x));
-    for (const v of vals) { const o = el("option", null, String(v)); o.value = JSON.stringify(v); if (JSON.stringify(c.values[p]) === o.value) o.selected = true; sel.append(o); }
+    for (const v of vals) { const o = el("option", null, String(v)); o.value = JSON.stringify(v); if (JSON.stringify(cur[p]) === o.value) o.selected = true; sel.append(o); }
     sel.onchange = () => {
       const want = {}; for (const q of s.params) want[q] = JSON.parse($("#c-" + q).value);
       let hit = s.cases.find(k => s.params.every(q => JSON.stringify(k.values[q]) === JSON.stringify(want[q])));
       if (!hit) hit = s.cases.find(k => JSON.stringify(k.values[p]) === JSON.stringify(want[p]));   // grid hole: nearest on this axis
-      selectCase(hit.id);
+      selectCase(hit.id, false, s.name);
     };
     f.append(sel); if (spec.help) { const h = el("div", "help small muted", spec.help); f.append(h); } pbox.append(f);
   }
 }
 
-function selectCase(id, first) {
+function selectCase(id, first, sweep) {
   const c = caseById(id); if (!c) return; CUR = c;
+  if (sweep) SW = sweep;
+  const s = sweepOf(c); SW = s.name;
   buildParamSelects(c);
-  const held = $("#c-held"); held.innerHTML = ""; const s = sweepOf(c);
-  if (s.params.length && c.fixed_text) held.append(el("span", null, "Held fixed: " + c.fixed_text));
+  const held = $("#c-held"); held.innerHTML = ""; const fixed = s.fixed_text ?? c.fixed_text;
+  if (s.params.length && fixed) held.append(el("span", null, "Held fixed: " + fixed));
   $("#c-case").innerHTML = ""; $("#c-case").append(el("span", null, "Showing: "), el("b", null, c.label));
   if (!first) history.replaceState(null, "", "#" + c.id);
   if (!VIEW || !c.views.some(v => v.view === VIEW)) VIEW = c.views[0].view;

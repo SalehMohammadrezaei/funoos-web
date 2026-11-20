@@ -17,7 +17,7 @@ import cases  # noqa: E402
 def load(runs):
     out = {}
     for m in Path(runs).glob("*/meta.json"):
-        d = json.loads(m.read_text()); out[d["case"]["id"]] = d
+        d = json.loads(m.read_text()); d["_dir"] = m.parent; out[d["case"]["id"]] = d
     return out
 
 
@@ -45,30 +45,62 @@ def main(runs_dir, out_md):
             lines.append(f"- `{cid}` ({q['level']}): " + "; ".join(q.get("notes", [])))
     lines.append("")
 
-    def sweep(exp, sweep_name, key):
-        rows = []
+    def points(exp, sweep_name=None):
+        """(overrides, run) for every finished point of a sweep, including the points that equal
+        a preset: those are stored once, as the preset, with the sweep point as an alias."""
+        out = []
         for cid, c in lib.items():
-            if c["experiment"] == exp and c["sweep"] == sweep_name and cid in runs and runs[cid].get("ok"):
-                rows.append((c["overrides"], runs[cid]["metrics"].get(key)))
-        return rows
+            if c["experiment"] != exp or cid not in runs or not runs[cid].get("ok"):
+                continue
+            if sweep_name is None or c["sweep"] == sweep_name:
+                out.append((c["overrides"], runs[cid]))
+            out += [(al["overrides"], runs[cid]) for al in c["aliases"] if al["sweep"] == sweep_name]
+        return out
+
+    def sweep(exp, sweep_name, key):
+        return [(o, d["metrics"].get(key)) for o, d in points(exp, sweep_name)]
+
+    def series(d, key):
+        return [x for x in json.loads((d["_dir"] / "series.json").read_text()).get(key, []) if x is not None]
+
+    def late_mean(d, key):
+        """Mean over the second half of the run: a turbulent plume's kinetic energy fluctuates, so a
+        single final frame does not rank cases."""
+        v = series(d, key); v = v[len(v) // 2:]
+        return sum(v) / len(v) if v else None
 
     results = []
 
     def check(name, ok, detail):
         results.append((name, ok, detail))
 
-    # Cylinder: Strouhal 0 at Re 40, within 0.15 to 0.25 for Re 180 to 1200
-    rows = {o["reynolds"]: v for o, v in sweep("cylinder_wake", "Reynolds number", "strouhal")}
-    if rows:
-        st = {re: rows.get(re) for re in sorted(rows)}
-        ok = (st.get(40) is None or st[40] < 0.05) and all(0.15 <= (st.get(re) or 0) <= 0.26 for re in (180, 400, 1200) if re in st)
-        check("Cylinder: no shedding at Re 40, Strouhal 0.15 to 0.26 at Re 180 to 1200", ok, {k: None if v is None else round(v, 3) for k, v in st.items()})
+    # Cylinder: steady wake at Re 40 (below onset at about 47), sustained shedding above, Strouhal
+    # 0.15 to 0.26 for Re 180 to 1200. The app's Strouhal readout also reports the frequency of a
+    # decaying start-up oscillation, so "steady" is judged from the cross-stream probe: its swing
+    # in the last quarter of the run against the first.
+    pts = {o["reynolds"]: d for o, d in points("cylinder_wake", "Reynolds number")}
+    if pts:
+        def decay(d):
+            uy = [x for x in json.loads((d["_dir"] / "series.json").read_text()).get("probe_uy", []) if x is not None]
+            q = len(uy) // 4
+            return (max(uy[-q:]) - min(uy[-q:])) / max(max(uy[:q]) - min(uy[:q]), 1e-30) if q else None
+        dec = {re: decay(d) for re, d in sorted(pts.items())}
+        st = {re: d["metrics"].get("strouhal") for re, d in sorted(pts.items())}
+        ok = all(v is not None and (v < 0.2 if re < 47 else v > 0.5) for re, v in dec.items())
+        check("Cylinder: wake oscillation dies out below Re 47 and is sustained above (last-quarter swing over first)", ok, {re: round(v, 3) for re, v in dec.items() if v is not None})
+        ok = all(0.15 <= (st.get(re) or 0) <= 0.26 for re in st if re >= 180)
+        check("Cylinder: Strouhal number 0.15 to 0.26 for Re 180 to 1200", ok, {re: None if v is None else round(v, 3) for re, v in st.items()})
     # Airfoil: cl sign follows the angle, monotone up to 14 degrees
     rows = {o["angle"]: v for o, v in sweep("airfoil_lift", "Angle of attack", "cl_circulation")}
     if rows:
         angs = sorted(a for a in rows if abs(a) <= 14)
         ok = monotone([rows[a] for a in angs], True) and all((rows[a] > 0) == (a > 0) for a in angs if a != 0)
         check("Airfoil: lift coefficient monotone in angle up to 14 degrees and changes sign through 0", ok, {a: round(rows[a], 3) for a in sorted(rows)})
+        # a symmetric section: C_l(-a) = -C_l(a); a solver or measurement asymmetry shows up here
+        pairs = {a: (rows[a] + rows[-a]) / max(abs(rows[a]), 1e-9) for a in sorted(rows) if a > 0 and -a in rows}
+        if pairs:
+            check("Airfoil: lift antisymmetric in angle, |C_l(a) + C_l(-a)| within 5 % of |C_l(a)|", all(abs(v) < 0.05 for v in pairs.values()),
+                  {a: f"{100 * v:+.1f} %" for a, v in pairs.items()})
     # Porous: k increases with porosity at fixed grain and with grain at fixed porosity
     rows = sweep("porous_flow", "Porosity and grain size", "permeability_cells2")
     if rows:
@@ -78,9 +110,10 @@ def main(runs_dir, out_md):
         ok1 = all(monotone([d[p] for p in sorted(d)], True) for d in byg.values())
         ok2 = all(monotone([d[g] for g in sorted(d)], True) for d in byp.values())
         check("Porous flow: permeability rises with porosity at fixed grain size", ok1, {g: {p: f"{v:.3g}" for p, v in sorted(d.items())} for g, d in byg.items()})
-        check("Porous flow: permeability rises with grain size at fixed porosity", ok2, "")
+        check("Porous flow: permeability rises with grain size at fixed porosity", ok2, {p: {g: f"{v:.3g}" for g, v in sorted(d.items())} for p, d in sorted(byp.items())})
     # Tracer: mass balance, dispersion ratio rises with Pe (pulse)
-    rows = [(o, runs[cid]["metrics"]) for cid, c in lib.items() if c["experiment"] == "tracer_transport" and cid in runs and runs[cid].get("ok") for o in [c["overrides"]]]
+    rows = [(o, d["metrics"]) for o, d in points("tracer_transport")]
+    rows += [(o, d["metrics"]) for o, d in points("tracer_transport", "Peclet number and injection") if o not in [r[0] for r in rows]]
     if rows:
         mb = max(m.get("tracer_mass_balance", 0) for _o, m in rows)
         check("Tracer: mass balance closes within 2 % in every case", mb < 0.02, f"worst {mb:.2e}")
@@ -88,32 +121,56 @@ def main(runs_dir, out_md):
         if len(pulse) > 1:
             check("Tracer: dispersion over molecular diffusion rises with the Peclet number (pulse)", monotone([v for _p, v in pulse], True, 0.05), {p: round(v, 2) for p, v in pulse})
     # Heated layer: Nu about 1 below onset, rising with buoyancy at fixed viscosity
-    rows = sweep("heated_layer", "Buoyancy and viscosity (Rayleigh number)", "nusselt")
-    if rows:
-        bynu = {}
-        for o, v in rows:
-            bynu.setdefault(o["viscosity"], {})[o["buoyancy"]] = v
-        cond = [d.get(0.0) for d in bynu.values() if d.get(0.0) is not None]
-        check("Heated layer: Nusselt number 1 (within 5 %) with buoyancy off", all(abs(v - 1) < 0.05 for v in cond), [round(v, 3) for v in cond])
-        ok = all(monotone([d[b] for b in sorted(d)], True, 0.02) for d in bynu.values())
-        check("Heated layer: Nusselt number rises with buoyancy at fixed viscosity", ok, {nu: {b: round(v, 2) for b, v in sorted(d.items())} for nu, d in bynu.items()})
-    # RT: mixing width grows with Atwood at fixed modes
-    rows = sweep("rayleigh_taylor", "Atwood number and modes", "mixing_width_final_frac")
-    if rows:
+    # The app's Nusselt readout is taken from the final frame alone, which in turbulent convection
+    # fluctuates; the kinetic energy is judged as a second-half mean.
+    pts = sorted(((o["buoyancy"], d) for o, d in points("heated_layer", "Buoyancy (Rayleigh number)")), key=lambda x: x[0])
+    if pts:
+        nu = {b: d["metrics"].get("nusselt") for b, d in pts}
+        check("Heated layer: Nusselt number 1 (within 5 %) with buoyancy off", nu.get(0.0) is not None and abs(nu[0.0] - 1) < 0.05, round(nu.get(0.0) or 0, 3))
+        check("Heated layer: Nusselt number (final-frame readout of the app) rises with buoyancy", monotone(list(nu.values()), True, 0.02),
+              {b: round(v, 2) for b, v in nu.items()})
+        ke = {b: late_mean(d, "kinetic_energy_per_mass") for b, d in pts}
+        check("Heated layer: kinetic energy (mean of the second half) rises with buoyancy", monotone(list(ke.values()), True, 0.02),
+              {b: f"{v:.3g}" for b, v in ke.items()})
+    # RT: by the end of the run the mixing zone fills the box at every Atwood number, so the final
+    # width cannot rank them. The time the zone takes to reach half the box can: the linear growth
+    # rate sqrt(A g k) and the self-similar h = alpha A g t^2 both make it scale as A^(-1/2).
+    pts = points("rayleigh_taylor", "Atwood number and modes")
+    if pts:
+        def t_half(d):
+            t, w = series(d, "time"), series(d, "mixing_width_frac")
+            return next((ti for ti, wi in zip(t, w) if wi >= 0.5), None)
         bym = {}
-        for o, v in rows:
-            bym.setdefault(o["modes"], {})[o["atwood"]] = v
-        ok = all(monotone([d[a] for a in sorted(d)], True, 0.05) for d in bym.values())
-        check("Rayleigh-Taylor: final mixing width grows with the Atwood number at fixed mode", ok, {m: {a: round(v, 3) for a, v in sorted(d.items())} for m, d in bym.items()})
+        for o, d in pts:
+            bym.setdefault(o["modes"], {})[o["atwood"]] = t_half(d)
+        ok = all(None not in d.values() for d in bym.values())
+        dev = {}
+        for m, d in bym.items():
+            a0 = min(d)
+            for a, t in d.items():
+                if t is not None and d[a0] is not None:
+                    dev[(m, a)] = abs(t / (d[a0] * math.sqrt(a0 / a)) - 1)
+        ok = ok and all(monotone([d[a] for a in sorted(d)], False) for d in bym.values()) and max(dev.values()) < 0.1
+        check("Rayleigh-Taylor: time for the mixing zone to reach half the box scales as A^(-1/2) (within 10 %)", ok,
+              {"time to half width, by modes then Atwood": {m: {a: t for a, t in sorted(d.items())} for m, d in bym.items()},
+               "worst deviation from A^(-1/2)": round(max(dev.values()), 3) if dev else None})
     # Smoke, flame, chimney: kinetic energy rises with buoyancy at fixed second parameter
-    for exp, sw, other in (("rising_smoke", "Buoyancy and confinement", "confinement"), ("candle_flame", "Stoichiometric mixture fraction and buoyancy", "zst"), ("chimney_plume", "Wind and buoyancy", "wind")):
-        rows = sweep(exp, sw, "ke_final")
-        if rows:
+    # Mean over the second half of the run, not the final frame (see late_mean). In a crosswind the
+    # kinetic energy is mostly the wind's own, so the chimney is judged in calm air; the windy rows
+    # are listed for information.
+    for exp, sw, other, judged in (("rising_smoke", "Buoyancy and confinement", "confinement", None),
+                                   ("candle_flame", "Stoichiometric mixture fraction and buoyancy", "zst", None),
+                                   ("chimney_plume", "Wind and buoyancy", "wind", 0.0)):
+        pts = points(exp, sw)
+        if pts:
             by = {}
-            for o, v in rows:
-                by.setdefault(o[other], {})[o["buoyancy"]] = v
-            ok = all(monotone([d[b] for b in sorted(d)], True, 0.02) for d in by.values())
-            check(f"{exp}: final kinetic energy rises with buoyancy at fixed {other}", ok, {k: {b: f"{v:.3g}" for b, v in sorted(d.items())} for k, d in by.items()})
+            for o, d in pts:
+                by.setdefault(o[other], {})[o["buoyancy"]] = late_mean(d, "kinetic_energy_per_mass")
+            rows = {k: d for k, d in by.items() if judged is None or k == judged}
+            ok = all(monotone([d[b] for b in sorted(d)], True, 0.02) for d in rows.values())
+            where = f"at fixed {other}" if judged is None else f"in calm air ({other} {judged:g})"
+            check(f"{exp}: kinetic energy (mean of the second half) rises with buoyancy {where}", ok,
+                  {k: {b: f"{v:.3g}" for b, v in sorted(d.items())} for k, d in sorted(by.items())})
     # Sod: error falls with resolution
     rows = {o["resolution"]: v for o, v in sweep("sod_tube", "Resolution", "sod_err_rho")}
     if rows:
@@ -154,7 +211,7 @@ def main(runs_dir, out_md):
             ok = all(monotone([d[n] for n in sorted(d)], False) for d in by.values())
             check(f"{exp}: final enstrophy falls with viscosity", ok, {t: {n: f"{v:.3g}" for n, v in sorted(d.items())} for t, d in by.items()})
     # Taylor-Green: KE decay matches exp(-4 nu t) : ke_final/ke_initial vs exact
-    tg = [(o, runs[cid]) for cid, c in lib.items() if c["experiment"] == "taylor_green" and c["sweep"] == "Viscosity" and cid in runs and runs[cid].get("ok") for o in [c["overrides"]]]
+    tg = points("taylor_green", "Viscosity")
     if tg:
         det = {}
         ok = True
