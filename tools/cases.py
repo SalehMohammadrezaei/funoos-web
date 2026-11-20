@@ -8,14 +8,16 @@ grid is run so every offered combination exists.
 
     python tools/cases.py          # list, validate, count
 """
-import itertools, json, sys
+import itertools, json, os, sys
 from pathlib import Path
 
 FUNOOS = Path("/mnt/d/Saleh/Funoos_dev")
 sys.path.insert(0, str(FUNOOS))
 from flowzoo import catalog, engine, schema  # noqa: E402
 
-RESOLUTION, DURATION = "High", 1.8
+# The resolution of every case that does not sweep it: High (the app's gallery setting) unless
+# FUNOOS_RESOLUTION names another of the app's choices, e.g. "Ultra (slow)" for runs_ultra/.
+RESOLUTION, DURATION = os.environ.get("FUNOOS_RESOLUTION", "High"), 1.8
 
 # experiment id -> list of (sweep name, [parameter names], list of value tuples)
 # Values are applied on top of the representative preset of the experiment.

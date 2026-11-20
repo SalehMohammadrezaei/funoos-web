@@ -13,7 +13,7 @@ copied unchanged from the Funoos source), with two additions from site/:
 
 Written: index.html, web/, data/ (catalog, exhibits, about, scene/<key>.json, cases.json,
 case/<id>.json), media/posters, media/plots, results/gallery/thumbs (the app's card thumbnails)
-and experiments/<id>.html (redirects from the first version of the site). With --media-base the
+and redirects from older addresses (experiments/<id>.html#<case id>, about.html, preview/). With --media-base the
 clips load from that URL prefix (the GitHub release); without it they are copied to media/video/
 for a local preview.
 """
@@ -31,6 +31,7 @@ import funoos_app  # noqa: E402
 
 SITE = HERE.parent / "site"
 RELEASES = "https://github.com/SalehMohammadrezaei/Funoos/releases"
+RES = cases.RESOLUTION.split(" (")[0]          # the library's resolution as the intro names it: High, Ultra
 # Readouts under the stage: the app's list (funoos_app._READOUTS) plus the tracer and SPH
 # measurements it does not show; the first four available are used, as in the app.
 READOUTS = [
@@ -91,7 +92,7 @@ def patch_index(html, n_cases, n_exps):
         '<link rel="icon" href="web/favicon.svg" type="image/svg+xml">\n'
         '<link rel="stylesheet" href="web/app.css">\n<link rel="stylesheet" href="web/web.css">')
     sub('A desktop laboratory for two-dimensional fluid motion and pattern formation.<br>Choose an experiment, adjust its setup, and inspect the resulting fields and measurements.',
-        f'The Funoos laboratory in your browser: {n_cases} simulations pre-run at High quality.<br>'
+        f'The Funoos laboratory in your browser: {n_cases} simulations pre-run at {RES} quality.<br>'
         'Choose an experiment, pick its setup from the pre-run values, and inspect the fields and measurements.')
     sub('<div class="stat"><div class="n" id="n-solvers" data-count="5">0</div><div class="l">solvers</div></div>',
         f'<div class="stat"><div class="n" id="n-cases" data-count="{n_cases}">0</div><div class="l">pre-run cases</div></div>')
@@ -100,7 +101,7 @@ def patch_index(html, n_cases, n_exps):
         f'''<button class="btn btn-ghost cta" onclick="openUrl('{RELEASES}')">Install the app for any value</button></div>''')
     sub('A desktop application for exploring two-dimensional fluid motion and pattern formation, created by Saleh Mohammadrezaei. Free and open source under the MIT licence.</p>',
         'A desktop application for exploring two-dimensional fluid motion and pattern formation, created by Saleh Mohammadrezaei. Free and open source under the MIT licence.</p>\n'
-        f'        <p class="read" style="margin:0 0 18px">This is its web version: the same interface, with {n_cases} cases solved in advance by the app\'s own engine at High resolution. '
+        f'        <p class="read" style="margin:0 0 18px">This is its web version: the same interface, with {n_cases} cases solved in advance by the app\'s own engine at {RES} resolution. '
         'The controls offer the pre-run values; for any other value, geometry or duration, '
         f'<a href="{RELEASES}" target="_blank" rel="noopener">install Funoos</a> (free, macOS · Windows · Linux).</p>')
     sub('<script src="web/logic.js"></script>',
@@ -114,7 +115,7 @@ def main():
     a = ap.parse_args(); runs, out, media = Path(a.runs), Path(a.out), a.media_base or "media/video/"
     out.mkdir(parents=True, exist_ok=True)
     # everything generated is rebuilt from scratch, so nothing retired lingers
-    for sub in ("data", "web", "media", "results", "experiments", "assets"):
+    for sub in ("data", "web", "media", "results", "experiments", "assets", "preview"):
         shutil.rmtree(out / sub, ignore_errors=True)
     (out / "about.html").unlink(missing_ok=True)
     (out / "web").mkdir(parents=True); (out / "data" / "scene").mkdir(parents=True); (out / "data" / "case").mkdir(parents=True)
@@ -206,13 +207,33 @@ def main():
         shutil.copy2(SITE / f, out / "web" / f)
     (out / "web" / "config.js").write_text(f"window.FUNOOS_MEDIA_BASE = {json.dumps(media)};\n")
     (out / ".nojekyll").write_text("")
-    # the first version of the site had one page per experiment; keep those links working
-    (out / "experiments").mkdir()
+    # Older addresses keep working. The first version of the site had one page per experiment,
+    # experiments/<id>.html#<case id>, and about.html; the app interface was first shown at
+    # preview/. A case id of the first version that is now an alias of another case (the same
+    # setup reached from a preset and a sweep) leads to that case.
+    built = {x["id"] for x in index}
+    old = {e["id"]: {} for e in catalog.EXPERIMENTS}
+    for c in lib:
+        if c["id"] not in built:
+            continue
+        old[c["experiment"]][c["id"]] = c["id"]
+        for al in c["aliases"]:
+            ov = al["overrides"]
+            aid = "__".join([c["experiment"]] + [f"{n}_{cases._slug(v)}" for n, v in ov.items()]) if ov else f"{c['experiment']}__{al['scene']}"
+            old[c["experiment"]].setdefault(aid, c["id"])
+
+    def redirect(path, title, to, script):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f'<!DOCTYPE html><meta charset="utf-8"><title>{title}</title><script>{script}</script>'
+                        f'<noscript><meta http-equiv="refresh" content="0; url={to}"></noscript><a href="{to}">{title}</a>\n')
+
     for e in catalog.EXPERIMENTS:
         to = f"../index.html#e/{e['representative']}"
-        (out / "experiments" / f"{e['id']}.html").write_text(
-            f'<!DOCTYPE html><meta charset="utf-8"><title>{e["name"]} · Funoos</title>'
-            f'<meta http-equiv="refresh" content="0; url={to}"><a href="{to}">{e["name"]}</a>\n')
+        m = json.dumps(old[e["id"]], separators=(",", ":"))
+        redirect(out / "experiments" / f"{e['id']}.html", f"{e['name']} · Funoos", to,
+                 f'var m={m},h=decodeURIComponent(location.hash.slice(1));location.replace(m[h]?"../index.html#c/"+m[h]:"{to}")')
+    redirect(out / "about.html", "About · Funoos", "index.html#about", 'location.replace("index.html#about")')
+    redirect(out / "preview" / "index.html", "Funoos", "../index.html", 'location.replace("../index.html"+location.hash)')
     rev = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=str(FUNOOS), capture_output=True, text=True).stdout.strip()
     print(f"site: {n_exps} experiments, {len(index)} cases, {len(catalog.SCENES)} scenes -> {out} (Funoos interface at {rev})")
 

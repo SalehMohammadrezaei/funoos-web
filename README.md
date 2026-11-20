@@ -33,6 +33,8 @@ rebuilding.
 The clips are release assets of this repository (`media-v1`); the pages load them from there.
 Posters, plots, the app's gallery thumbnails and the case data (`data/`) live in `docs/`.
 Links: `#gallery`, `#e/<scene>` (an experiment page), `#c/<case id>` (a case in the Studio).
+The addresses of the first version of the site (`experiments/<id>.html#<case id>`, `about.html`)
+and of the preview (`preview/`) redirect to the same place in this one.
 
 ## Rebuilding
 
@@ -43,6 +45,15 @@ python tools/trends.py runs CHECKS.md
 python tools/build_site.py runs docs --media-base https://github.com/SalehMohammadrezaei/funoos-web/releases/download/media-v1/
 python tools/upload_media.py runs media-v1 <file holding a GitHub token>   # clips to the release; restartable
 ```
+
+The library at the app's highest setting goes to its own folder; the case ids are the same:
+
+```bash
+FUNOOS_RESOLUTION="Ultra (slow)" FUNOOS_CLIP_MAXW=1920 FUNOOS_CLIP_CRF=23 \
+  python tools/batch.py runs_ultra --pin ccd --budget 188 --timeout 259200
+```
+
+`trends.py` and `build_site.py` need the same `FUNOOS_RESOLUTION` when they read that folder.
 
 Without `--media-base` the clips are copied into `docs/media/video/` for a local preview
 (`python -m http.server` inside `docs/`).
