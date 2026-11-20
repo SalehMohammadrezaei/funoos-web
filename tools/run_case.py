@@ -6,7 +6,8 @@ Output in <runs>/<case id>/:
     meta.json          case, parameters, result metadata, measurements, derived quantities,
                        quality, explanation layers, checks, timings
     series.json        time series of the diagnostics
-    <view>.mp4         one clip per view (H.264, CRF 28, longest side 960 px, 24 fps)
+    <view>.mp4         one clip per view (H.264 at 24 fps; CRF 28 and longest side 960 px, or
+                       FUNOOS_CLIP_CRF / FUNOOS_CLIP_MAXW)
     <view>.webp        poster (a developed frame, 70 % through the clip)
     plot_<n>.svg       diagnostic plots (vector), titles and explanations in meta.json
 The solver threads come from OMP_NUM_THREADS, set by the batch driver.
@@ -21,7 +22,9 @@ sys.path.insert(0, str(HERE))
 import cases  # noqa: E402
 from flowzoo import catalog, engine, postproc, render, schema  # noqa: E402
 
-MAXW, FPS, CRF = 960, 24, 28
+# clip size and quality: longest side at most MAXW px (never upscaled), H.264 CRF; the High
+# library uses 960 / 28, the Ultra library FUNOOS_CLIP_MAXW=1920 FUNOOS_CLIP_CRF=23
+MAXW, FPS, CRF = int(os.environ.get("FUNOOS_CLIP_MAXW", 960)), 24, int(os.environ.get("FUNOOS_CLIP_CRF", 28))
 
 
 def _slug(view):
