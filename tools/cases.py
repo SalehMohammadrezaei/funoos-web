@@ -113,7 +113,9 @@ def build():
     def add(exp_id, scene_key, sweep, names, values, label):
         ov = dict(zip(names, values)) if names else {}
         params = full_params(scene_key, ov)
-        sig = (catalog.scene(scene_key)["exhibit"], json.dumps(params, sort_keys=True))
+        # numbers by value: a preset's 140 and a sweep's 140.0 are the same setup
+        norm = {k: float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else v for k, v in params.items()}
+        sig = (catalog.scene(scene_key)["exhibit"], json.dumps(norm, sort_keys=True))
         if sig in seen:                                  # same physics already in the library
             seen[sig]["aliases"].append({"scene": scene_key, "sweep": sweep, "label": label, "overrides": ov})
             return
