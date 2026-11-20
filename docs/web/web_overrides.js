@@ -130,7 +130,9 @@
   };
   // the library's clips are encoded at 24 frames per second (the app's own at 26)
   const _setVideo = setVideo;
-  setVideo = function (src, keep) { FPS = 24; return _setVideo(src, keep); };
+  // The clips have no sound track. A browser starts a video by itself (a link straight into the
+  // Studio, before any click) only when it is muted; the desktop app's window has no such rule.
+  setVideo = function (src, keep) { FPS = 24; document.getElementById("s-video").muted = true; return _setVideo(src, keep); };
   const QUIET = [/^Done — open/];
   const _toast = toast;
   toast = function (msg, kind) { if (QUIET.some(r => r.test(msg))) return; return _toast(msg, kind); };
