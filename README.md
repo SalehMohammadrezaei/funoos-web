@@ -1,13 +1,19 @@
 # Funoos on the web
 
 The static web version of [Funoos](https://github.com/SalehMohammadrezaei/Funoos), the fluid
-simulation laboratory: every experiment of the desktop app, pre-run at the app's gallery
-quality and served as a plain GitHub Pages site. No installation, no server, no account.
+simulation laboratory: the app's own interface (home, gallery, experiment pages, Studio) with
+every experiment pre-run at High resolution, served as a plain GitHub Pages site. No
+installation, no server, no account.
 
 The site is generated from a library of pre-computed cases. Each case is one run of the app's
 engine with its parameters, measurements, diagnostic plots, explanation layers and one clip per
-view. The pages offer fixed choices; for any other value, geometry or duration the desktop app
-is the tool.
+view. The Studio's controls offer the pre-run values; for any other value, geometry or duration
+the desktop app is the tool.
+
+The interface is not a copy kept in this repository: `tools/build_site.py` takes `index.html`
+and `web/` from the Funoos source, unchanged, and adds a layer that answers the app's backend
+calls from the library instead of the Python solver. A new Funoos interface is picked up by
+rebuilding.
 
 ## Layout
 
@@ -17,13 +23,16 @@ is the tool.
 | `tools/run_case.py` | runs one case end to end: solve, measure, plot, render and encode, with per-case checks |
 | `tools/batch.py` | runs the library with a thread budget; restartable |
 | `tools/trends.py` | cross-case physics checks, written to `CHECKS.md` |
-| `tools/build_site.py` | writes the site into `docs/` from the finished runs |
-| `site/assets/` | the stylesheet (the app's own design system plus a light theme), the page script and the icon |
+| `tools/build_site.py` | writes the site into `docs/`: the app's interface from the Funoos source, the web layer from `site/`, and the case data from the finished runs |
+| `site/web_backend.js` | answers the app's backend calls (`window.pywebview.api`) from the pre-run library: catalogue, scenes, runs, views, plots, run history, sweeps |
+| `site/web_overrides.js` | the changes a pre-run library needs: Studio controls list the pre-run values (other controls move to the nearest pre-run combination), results load at once, side-by-side comparison, links that follow the page |
+| `site/web.css` | additions to the app's stylesheet: hidden desktop-only tools, comparison layout, phone layout |
 | `docs/` | the generated site served by GitHub Pages |
 | `PLAN.md` | the assessment and plan the library follows |
 
 The clips are release assets of this repository (`media-v1`); the pages load them from there.
-Posters, plots and the per-experiment JSON manifests live in `docs/`.
+Posters, plots, the app's gallery thumbnails and the case data (`data/`) live in `docs/`.
+Links: `#gallery`, `#e/<scene>` (an experiment page), `#c/<case id>` (a case in the Studio).
 
 ## Rebuilding
 
