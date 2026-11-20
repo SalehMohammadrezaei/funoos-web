@@ -1,0 +1,67 @@
+/* Funoos on the web: additions to the app's stylesheet (web/app.css, unchanged). */
+
+/* tools that work on raw fields or on the local machine live in the desktop app */
+#rail .railbtn[onclick="openSettings()"], #settings,
+.galtools button[onclick*="FILTER.quick"],
+#s-probe, #x-opts,
+#s-exportmenu [data-export="gif"], #s-exportmenu [data-export="png"], #s-exportmenu [data-export="csv"],
+#s-exportmenu [data-export="npz"], #s-exportmenu [data-export="report"], #s-exportmenu [data-export="project"],
+#s-exportmenu [data-export="options"], #s-exportmenu [data-export="options"] + .menusep,
+#s-moremenu button[onclick*="saveProject"], #s-moremenu button[onclick*="loadProject"] { display: none !important; }
+
+/* intro: the two calls to action */
+.ctarow { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.ctarow .btn-ghost.cta { font-size: 15px; }
+
+/* a control with a single pre-run value */
+.field.webfixed select:disabled { opacity: .62; cursor: default; }
+.field .rng { white-space: nowrap; }
+
+/* comparison: two clips side by side */
+#s-screen.webcmp #w-cmpa { display: block; left: 0; right: auto; width: 50%; }
+#s-screen.webcmp #s-video { left: 50%; right: auto; width: 50%; }
+#s-screen.webcmp #s-video::before { content: ""; }
+#s-screen .wtag { position: absolute; top: 10px; z-index: 3; max-width: calc(50% - 24px); font-size: 11.5px; font-weight: 600; color: var(--read);
+  background: rgba(8, 16, 30, .82); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#s-screen .wtag.left { left: 12px; }
+#s-screen .wtag.right { left: calc(50% + 12px); }
+#s-screen.webcmp::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; border-left: 1px solid var(--line); z-index: 2; }
+
+.webfail { position: fixed; left: 50%; top: 24px; transform: translateX(-50%); z-index: 400; max-width: 90vw; padding: 12px 16px; border-radius: 12px;
+  background: rgba(60, 14, 22, .95); border: 1px solid #e35d6a; color: #fff; font-size: 14px; }
+
+/* phones: the rail becomes a bar at the bottom, the detail page stacks */
+@media (max-width: 760px) {
+  #app { flex-direction: column-reverse; height: 100dvh; }
+  #rail { width: 100%; height: 58px; flex-direction: row; justify-content: space-around; gap: 0; padding: 4px 6px; border-right: none; border-top: 1px solid var(--line); }
+  #rail .logo, #rail .railspace { display: none; }
+  #rail .railbtn { width: auto; flex: 1; height: 50px; margin: 0; }
+  #content { flex: 1; min-height: 0; }
+  .wordmark { font-size: 54px !important; }
+  .statrow { gap: 18px; flex-wrap: wrap; justify-content: center; }
+  .gal-head, #gallery-start { padding-left: 14px; padding-right: 14px; }
+  .cargrid { padding: 6px 14px 30px; }
+  .galtools input { min-width: 0; flex: 1 1 100%; }
+  #detail .dbody { display: flex; flex-direction: column; overflow-y: auto; height: auto; }
+  #detail .dbody .media, #detail #d-text { width: 100%; max-width: none; }
+  #detail #d-text { overflow: visible; }
+  #detail .topbar { padding: 10px 14px; }
+  /* Studio on a phone: the result first, then its transport, then the setup; the page scrolls */
+  #studio .dash, #studio .dash.collapsed { display: flex; flex-direction: column; height: 100%; overflow-y: auto; padding: 8px; gap: 8px; }
+  #studio .t-stage { order: 1; flex: none; }
+  #studio .t-transport { order: 2; flex: none; padding: 8px 10px; }
+  #studio .t-params { order: 3; flex: none; height: auto; }
+  #studio .dash.collapsed .t-params { display: flex; }
+  #studio .t-params .params { overflow: visible; flex: none; }
+  #s-collapse, #s-expand { display: none !important; }
+  #s-screen { flex: none; height: 62vw; min-height: 230px; max-height: 52vh; }
+  .t-stage .viewbar { gap: 6px; margin-bottom: 6px; }
+  .t-stage .viewbar .tabs, .t-stage .viewbar .views { flex: 1 1 100%; overflow-x: auto; }
+  #s-cmap { display: none; }
+  .readouts .kpi { min-width: 0; }
+  .transport { gap: 6px; flex-wrap: wrap; }
+  .transport button { width: 38px; height: 34px; }
+  .transport .scrub { flex: 1 1 100%; order: 9; }
+  #s-simtime, .transport > .muted, .transport button[onclick^="vSpeed"], #s-rate { display: none; }
+  #toasts { bottom: 70px; }
+}
