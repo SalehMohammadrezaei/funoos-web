@@ -1,1 +1,2 @@
-window.FUNOOS_MEDIA_BASE = "https://github.com/SalehMohammadrezaei/funoos-web/releases/download/media-v1/";
+window.FUNOOS_MEDIA_BASE = "https://github.com/SalehMohammadrezaei/funoos-web/releases/download/media-v2/";
+window.FUNOOS_RESOLUTION = "Ultra (slow)";

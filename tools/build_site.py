@@ -205,7 +205,8 @@ def main():
         shutil.copy2(FUNOOS / "web" / f, out / "web" / f)
     for f in ("web_backend.js", "web_overrides.js", "web.css", "favicon.svg"):
         shutil.copy2(SITE / f, out / "web" / f)
-    (out / "web" / "config.js").write_text(f"window.FUNOOS_MEDIA_BASE = {json.dumps(media)};\n")
+    (out / "web" / "config.js").write_text(f"window.FUNOOS_MEDIA_BASE = {json.dumps(media)};\n"
+                                           f"window.FUNOOS_RESOLUTION = {json.dumps(cases.RESOLUTION)};\n")
     (out / ".nojekyll").write_text("")
     # Older addresses keep working. The first version of the site had one page per experiment,
     # experiments/<id>.html#<case id>, and about.html; the app interface was first shown at

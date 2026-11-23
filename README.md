@@ -2,7 +2,7 @@
 
 The static web version of [Funoos](https://github.com/SalehMohammadrezaei/Funoos), the fluid
 simulation laboratory: the app's own interface (home, gallery, experiment pages, Studio) with
-every experiment pre-run at High resolution, served as a plain GitHub Pages site. No
+every experiment pre-run at Ultra, its highest resolution, served as a plain GitHub Pages site. No
 installation, no server, no account.
 
 The site is generated from a library of pre-computed cases. Each case is one run of the app's
@@ -30,7 +30,8 @@ rebuilding.
 | `docs/` | the generated site served by GitHub Pages |
 | `PLAN.md` | the assessment and plan the library follows |
 
-The clips are release assets of this repository (`media-v1`); the pages load them from there.
+The clips are release assets of this repository (`media-v2`; `media-v1` holds the earlier High
+library); the pages load them from there.
 Posters, plots, the app's gallery thumbnails and the case data (`data/`) live in `docs/`.
 Links: `#gallery`, `#e/<scene>` (an experiment page), `#c/<case id>` (a case in the Studio).
 The addresses of the first version of the site (`experiments/<id>.html#<case id>`, `about.html`)
@@ -40,20 +41,20 @@ and of the preview (`preview/`) redirect to the same place in this one.
 
 ```bash
 # with the Funoos source at the path set in tools/cases.py and its Python environment active
-python tools/batch.py runs --pin ccd           # the whole library (about a day on a 96-core workstation)
-python tools/trends.py runs CHECKS.md
-python tools/build_site.py runs docs --media-base https://github.com/SalehMohammadrezaei/funoos-web/releases/download/media-v1/
-python tools/upload_media.py runs media-v1 <file holding a GitHub token>   # clips to the release; restartable
+export FUNOOS_RESOLUTION="Ultra (slow)" FUNOOS_CLIP_MAXW=1920 FUNOOS_CLIP_CRF=23
+python tools/batch.py runs_ultra --group other --budget 188                    # a few hours
+python tools/batch.py runs_ultra --group ns --pin ccd --budget 188 --timeout 259200
+python tools/trends.py runs_ultra CHECKS.md
+python tools/upload_media.py runs_ultra media-v2 <file holding a GitHub token>   # clips to the release; restartable
+python tools/build_site.py runs_ultra docs --media-base https://github.com/SalehMohammadrezaei/funoos-web/releases/download/media-v2/
 ```
 
-The library at the app's highest setting goes to its own folder; the case ids are the same:
+Keep `FUNOOS_RESOLUTION` set for every command: it decides which cases the library holds.
+Without these variables the same tools build the High library (960 px clips) in `runs/`.
 
-```bash
-FUNOOS_RESOLUTION="Ultra (slow)" FUNOOS_CLIP_MAXW=1920 FUNOOS_CLIP_CRF=23 \
-  python tools/batch.py runs_ultra --pin ccd --budget 188 --timeout 259200
-```
-
-`trends.py` and `build_site.py` need the same `FUNOOS_RESOLUTION` when they read that folder.
+Run the two batch groups one after the other. With other jobs on the same chiplets, the Ultra
+Navier-Stokes jobs ran about five times slower than on their own, because their pressure solve
+(conjugate gradients) is limited by cache and memory bandwidth.
 
 Without `--media-base` the clips are copied into `docs/media/video/` for a local preview
 (`python -m http.server` inside `docs/`).
@@ -65,7 +66,7 @@ times slower. `--group ns` or `--group other` runs one part of the library;
 `bench/ns_conc.py` measures NS throughput against the number of concurrent jobs. On a
 Threadripper PRO 7995WX, 12 jobs of 8 threads gave 3.5 times the throughput of one job, with
 or without pinning each job to a chiplet. The Navier-Stokes runs at High took 18.4 hours there;
-everything else together takes under 2 hours.
+the whole library at Ultra took 58.5 hours.
 
 ## Licence
 

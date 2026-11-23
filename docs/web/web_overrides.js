@@ -5,7 +5,7 @@
    - Studio controls offer the pre-run values of each parameter. Every value of the experiment can
      be picked; when that value was run with different settings of the other controls, those move
      to the nearest pre-run combination, and the result loads at once.
-   - A scene opens on its pre-run preset (resolution High, duration 1.8) and plays it.
+   - A scene opens on its pre-run preset (the library's resolution, duration 1.8) and plays it.
    - Comparison shows the two clips side by side (each with its own colour scale), the parameter
      sweep runs over the pre-run values, exports that need raw fields point to the desktop app.
    - The address bar follows the page (#gallery, #e/<scene>, #c/<case>), so links can be shared.

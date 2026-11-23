@@ -20,9 +20,10 @@
   const detail = id => getJSON("data/case/" + id + ".json");
   const same = (a, b) => (typeof a === "number" && typeof b === "number")
     ? Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b)) : a === b;
-  // The resolution and duration of a scene's defaults are not those of the library (High, 1.8):
-  // a setup built from defaults (guided comparisons) matches on the physics alone.
-  const RENDER = new Set(["resolution", "duration"]);
+  // The resolution and duration of a scene's defaults are not those of the library:
+  // a setup built from defaults (guided comparisons) matches on the physics alone, and where
+  // several resolutions of it exist (the Sod tube) the library's own is preferred.
+  const RENDER = new Set(["resolution", "duration"]), LIBRARY_RES = window.FUNOOS_RESOLUTION || "High";
   function matches(c, params, skip) {
     for (const k in c.params) if (k in params && !(skip && RENDER.has(k)) && !same(c.params[k], params[k])) return false;
     return true;
@@ -30,7 +31,7 @@
   async function findCase(exhibit, params) {
     const all = (await cases()).filter(c => c.exhibit === exhibit);
     return all.find(c => matches(c, params, false))
-      || all.filter(c => matches(c, params, true)).sort((a, b) => (b.params.resolution === "High") - (a.params.resolution === "High"))[0] || null;
+      || all.filter(c => matches(c, params, true)).sort((a, b) => (b.params.resolution === LIBRARY_RES) - (a.params.resolution === LIBRARY_RES))[0] || null;
   }
   const clip = (id, slug) => MEDIA + id + "__" + slug + ".mp4";
   const viewOf = (d, view) => d.views.find(v => v.view === view) || d.views.find(v => v.view === d.default_view) || d.views[0];
