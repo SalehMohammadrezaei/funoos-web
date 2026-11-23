@@ -36,8 +36,12 @@ SWEEPS = {
                       list(itertools.product([0.001, 0.0022, 0.005], [0, 7, 18])))],
     "rayleigh_taylor": [("Atwood number and modes", ["atwood", "modes"],
                          list(itertools.product([0.2, 0.5, 0.7, 1.0], [0, 3])))],
+    # The flame fills under 1 % of the frame, so its mixture and buoyancy steps are subtle; going to
+    # the ends of their sliders (Z_st 0.08 to 0.30, buoyancy to 0.03) added only about 4 % to the
+    # difference between neighbours, so those values stay. The wick width changes the visible shape.
     "candle_flame": [("Stoichiometric mixture fraction and buoyancy", ["zst", "buoyancy"],
-                      list(itertools.product([0.10, 0.16, 0.25], [0.012, 0.025])))],
+                      list(itertools.product([0.10, 0.16, 0.25], [0.012, 0.025]))),
+                     ("Wick width", ["source"], [(0.35,), (1.4,)])],
     # Every nonzero buoyancy is far above onset (Ra 1e9 to 1e11 in grid units at High), so buoyancy
     # sets the look (onset time, regular columns or turbulence). Viscosity over its whole slider range
     # (0.0002 to 0.0015, Prandtl << 1) leaves the clips identical, so it is not swept; the thermal

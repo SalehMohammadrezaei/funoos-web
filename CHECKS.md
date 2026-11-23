@@ -1,6 +1,6 @@
 # Checks of the pre-run library
 
-Cases run: 214 of 214. Passing every per-case check: 209. Failing: 5.
+Cases run: 216 of 216. Passing every per-case check: 211. Failing: 5.
 
 ## Cases with a failed per-case check
 - `tracer_transport__peclet_0p5__injection_continuous_supply`:  ['quality_not_incomplete']
