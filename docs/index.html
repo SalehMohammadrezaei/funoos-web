@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Funoos — fluid simulation laboratory</title>
+<meta name="description" content="Funoos in the browser: the desktop fluid-simulation laboratory with 216 pre-run simulations of 28 experiments, their measurements, plots and explanations.">
+<link rel="icon" href="web/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="web/app.css">
+<link rel="stylesheet" href="web/web.css">
+</head>
+<body>
+<div id="bg"></div>
+<div id="spot"></div>
+<canvas id="heroCanvas"></canvas>
+<div id="app">
+
+  <!-- persistent rail -->
+  <nav id="rail">
+    <div class="logo">F</div>
+    <button class="railbtn" data-view="intro" onclick="show('intro')" aria-label="Home">⌂<span class="lbl">Home</span></button>
+    <button class="railbtn" data-view="gallery" onclick="show('gallery')" aria-label="Gallery">▦<span class="lbl">Gallery</span></button>
+    <button class="railbtn" data-view="studio" onclick="show('studio')" aria-label="Studio">⚙<span class="lbl">Studio</span></button>
+    <div class="railspace"></div>
+    <button class="railbtn" onclick="openSettings()" aria-label="Settings">⚒<span class="lbl">Settings</span></button>
+    <button class="railbtn" data-view="about" onclick="show('about')" aria-label="About">ⓘ<span class="lbl">About</span></button>
+  </nav>
+  <div class="glass settings" id="settings" style="display:none" role="dialog" aria-label="Settings">
+    <div class="kicker">settings</div>
+    <label>runs kept in memory <input id="st-maxruns" type="number" min="1" max="20"></label>
+    <label>memory budget (MB) <input id="st-mem" type="number" min="128" step="128"></label>
+    <label>solver threads <input id="st-threads" type="number" min="1"> <span id="st-threadnote" class="muted small"></span></label>
+    <label><input id="st-preview" type="checkbox"> instant still previews when changing the palette</label>
+    <label><input id="st-autoplay" type="checkbox"> autoplay preview clips in the gallery</label>
+    <div id="st-usage" class="muted small"></div>
+    <div class="ptools"><button class="linkbtn" type="button" onclick="applySettings()">apply</button><button class="linkbtn" type="button" onclick="openSettings()">close</button></div>
+  </div>
+
+  <div id="content">
+
+    <!-- ───────── intro ───────── -->
+    <section class="view active" id="intro">
+      <div class="wrap">
+        <div class="wordmark reveal"><span class="fun">FUN</span><span class="oos">OOS</span></div>
+        <div class="tagline reveal">Explore fluid motion through simulation.</div>
+        <div class="subtitle reveal">The Funoos laboratory in your browser: 216 simulations pre-run at Ultra quality.<br>Choose an experiment, pick its setup from the pre-run values, and inspect the fields and measurements.</div>
+        <div class="statrow reveal">
+          <div class="stat"><div class="n" id="n-methods" data-count="6">0</div><div class="l">methods</div></div>
+          <div class="stat"><div class="n" id="n-scenes" data-count="28">0</div><div class="l">experiments</div></div>
+          <div class="stat"><div class="n" id="n-presets" data-count="51">0</div><div class="l">presets</div></div>
+          <div class="stat"><div class="n" id="n-cases" data-count="216">0</div><div class="l">pre-run cases</div></div>
+        </div>
+        <div class="introchips reveal">
+          <span class="chip">Lattice-Boltzmann</span><span class="chip">Navier–Stokes</span>
+          <span class="chip">Compressible Euler</span><span class="chip">SPH</span>
+          <span class="chip">Spectral</span><span class="chip">Reaction–Diffusion</span>
+        </div>
+        <div class="ctarow reveal"><button class="btn btn-primary cta" onclick="show('gallery')">Explore the simulations →</button><button class="btn btn-ghost cta" onclick="openUrl('https://github.com/SalehMohammadrezaei/Funoos/releases')">Install the app for any value</button></div>
+        <div class="credit reveal">
+          <div class="kicker">created by</div>
+          <div class="name">Saleh Mohammadrezaei</div>
+          <div class="mail">salehmrezaee@gmail.com</div>
+          <div class="ptools" style="justify-content:center;margin-top:8px"><button class="linkbtn" type="button" onclick="openUrl('https://github.com/SalehMohammadrezaei/Funoos')">GitHub</button><button class="linkbtn" type="button" onclick="show('about')">About &amp; licence</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── about ───────── -->
+    <section class="view" id="about">
+      <div class="body scroll" style="padding:24px 40px;max-width:820px">
+        <div class="kicker">about</div>
+        <h1>Funoos — fluid simulation laboratory</h1>
+        <p class="read" style="margin:10px 0 18px">A desktop application for exploring two-dimensional fluid motion and pattern formation, created by Saleh Mohammadrezaei. Free and open source under the MIT licence.</p>
+        <p class="read" style="margin:0 0 18px">This is its web version: the same interface, with 216 cases solved in advance by the app's own engine at Ultra resolution. The controls offer the pre-run values; for any other value, geometry or duration, <a href="https://github.com/SalehMohammadrezaei/Funoos/releases" target="_blank" rel="noopener">install Funoos</a> (free, macOS · Windows · Linux).</p>
+        <div id="about-body"></div>
+      </div>
+    </section>
+
+    <!-- ───────── gallery (card grid) ───────── -->
+    <section class="view" id="gallery">
+      <div class="body scroll" id="gallery-scroll">
+        <div class="gal-head">
+          <div class="gal-titles">
+            <div class="kicker">gallery</div>
+            <h1>Explore the simulations</h1>
+            <div class="gal-sub" id="gal-sub">Experiments organised by phenomenon.</div>
+          </div>
+          <div class="galtools" role="search">
+            <label class="sr" for="g-search">Search experiments</label>
+            <input id="g-search" type="search" placeholder="Search experiments, questions, methods" oninput="setFilter('q', this.value)">
+            <label class="sr" for="g-method">Filter by numerical method</label>
+            <select id="g-method" onchange="setFilter('method', this.value)"></select>
+            <button class="chipbtn" type="button" aria-pressed="false" onclick="this.setAttribute('aria-pressed', !FILTER.fav); setFilter('fav', !FILTER.fav)">★ Favourites</button>
+            <button class="chipbtn" type="button" aria-pressed="false" onclick="this.setAttribute('aria-pressed', !FILTER.quick); setFilter('quick', !FILTER.quick)">⚡ Under a minute</button>
+          </div>
+          <nav class="phenchips" id="g-phen" aria-label="Show one phenomenon"></nav>
+        </div>
+        <div id="gallery-start"></div>
+        <div class="cargrid" id="gallery-grid"></div>
+      </div>
+    </section>
+
+    <!-- ───────── detail ───────── -->
+    <section class="view" id="detail">
+      <div class="topbar">
+        <button class="back" type="button" onclick="show('gallery')">‹ Gallery</button>
+        <span class="brand"><b>FUN</b>OOS</span>
+      </div>
+      <div class="body dbody">
+        <div class="media">
+          <div class="kicker" id="d-method"></div>
+          <h1 id="d-title" style="margin:6px 0 6px"></h1>
+          <div class="dq"><span id="d-question" class="read"></span> <span id="d-status" class="statusbadge"></span></div>
+          <div class="presetrow"><label for="d-preset" class="kicker">Preset</label> <select id="d-preset" class="linkbtn" aria-label="Preset of this experiment"></select> <span id="d-presetname" class="muted small"></span></div>
+          <div id="d-compare" class="gcmpbox"></div>
+          <video id="d-video" autoplay loop muted playsinline aria-label="preview clip"></video>
+          <button class="btn btn-blue" style="margin-top:16px;padding:15px 26px;width:100%" id="d-open">Open in Studio →</button>
+        </div>
+        <div class="scroll" id="d-text" style="padding-right:8px"></div>
+      </div>
+    </section>
+
+    <!-- ───────── studio: setup panel · stage with tabs and readouts · transport ───────── -->
+    <section class="view" id="studio">
+      <div class="dash" id="s-dash">
+        <aside class="glass tile t-params" id="s-panel" aria-label="Setup">
+          <div class="phead">
+            <div class="kicker" id="s-name">parameters</div>
+            <button class="iconbtn" type="button" id="s-collapse" onclick="toggleSetup()" aria-label="Hide the setup panel" title="Hide the setup panel (more room for the field)">⟨</button>
+          </div>
+          <div class="ppick">
+            <label class="sr" for="s-scene">Experiment</label>
+            <select id="s-scene" onchange="studioPickExperiment(this)" aria-label="Experiment"></select>
+            <label class="sr" for="s-preset">Preset</label>
+            <select id="s-preset" aria-label="Preset" style="display:none"></select>
+          </div>
+          <div class="ptools">
+            <button class="linkbtn" id="s-undo" type="button" onclick="undoParams()" disabled aria-label="Undo setup change" title="Undo (Ctrl+Z)">↶</button>
+            <button class="linkbtn" id="s-redo" type="button" onclick="redoParams()" disabled aria-label="Redo setup change" title="Redo (Ctrl+Shift+Z)">↷</button>
+            <button class="linkbtn" id="s-adv" type="button" onclick="toggleAdvanced()" aria-pressed="false">Advanced</button>
+            <span class="spacer"></span>
+            <div class="menu">
+              <button class="linkbtn" id="s-more" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="s-moremenu" onclick="toggleMenu('s-moremenu', this)">More ▾</button>
+              <div class="menupop" id="s-moremenu" role="menu" aria-label="More setup actions" hidden>
+                <button role="menuitem" type="button" onclick="closeMenus(); resetAll()">⟲ Restore the preset values</button>
+                <button role="menuitem" type="button" onclick="closeMenus(); saveProject()">💾 Save setup to a file…</button>
+                <button role="menuitem" type="button" onclick="closeMenus(); loadProject()">📂 Load setup from a file…</button>
+                <button role="menuitem" type="button" onclick="closeMenus(); openSweep()">📈 Parameter sweep…</button>
+                <div class="menusep" role="separator"></div>
+                <label class="menulabel" for="s-presets">My saved setups</label>
+                <select id="s-presets" onchange="closeMenus(); presetAction(this)"></select>
+              </div>
+            </div>
+          </div>
+          <div class="sweep" id="s-sweep" style="display:none">
+            <label for="s-sweep-param">Sweep parameter</label>
+            <select id="s-sweep-param"></select>
+            <label for="s-sweep-values">Values (comma-separated, up to 8)</label>
+            <input id="s-sweep-values" type="text" placeholder="e.g. 60, 120, 240">
+            <div class="ptools"><button class="linkbtn" id="s-sweep-run" type="button" onclick="runSweep()">▶ run sweep</button>
+              <button class="linkbtn" type="button" onclick="openSweep()">close</button></div>
+          </div>
+          <div class="params" id="s-params"></div>
+          <details class="derivedbox" id="s-derivedbox" ontoggle="_lsSet('funoos.derivedOpen', this.open)">
+            <summary><span class="kicker">derived quantities</span><span class="dsum" id="s-derived-sum"></span></summary>
+            <div class="derived" id="s-derived"></div>
+          </details>
+          <div class="runblock">
+            <button class="btn btn-primary runbtn" id="s-run" onclick="runSim()">▶  Run simulation</button>
+            <button class="btn btn-ghost runbtn cancelbtn" id="s-cancel" onclick="cancelSim()" style="display:none">■  Cancel</button>
+            <div class="status" id="s-status" role="status">Ready.</div>
+            <div class="estimate muted" id="s-estimate" aria-live="polite"></div>
+            <div class="match" id="s-match" aria-live="polite"></div>
+          </div>
+        </aside>
+
+        <div class="tile t-stage">
+          <div class="viewbar">
+            <button class="linkbtn setupbtn" type="button" id="s-expand" onclick="toggleSetup()" aria-label="Show the setup panel" hidden>☰ Setup</button>
+            <div class="seg tabs" role="tablist" aria-label="What the stage shows">
+              <button role="tab" type="button" id="tab-field" aria-selected="true" aria-controls="s-screen" onclick="setTab('field')" title="The simulated field"><span class="ti" aria-hidden="true">◧</span><span class="tl">Field</span></button>
+              <button role="tab" type="button" id="s-plots" aria-selected="false" aria-controls="s-plotpanel" tabindex="-1" onclick="setTab('plots')" title="Diagnostic plots and measurements"><span class="ti" aria-hidden="true">📊</span><span class="tl">Plots</span></button>
+              <button role="tab" type="button" id="tab-explain" aria-selected="false" aria-controls="s-help" tabindex="-1" onclick="setTab('explain')" title="What this experiment shows and how it is modelled"><span class="ti" aria-hidden="true">?</span><span class="tl">Explain</span></button>
+              <button role="tab" type="button" id="tab-runs" aria-selected="false" aria-controls="s-runs" tabindex="-1" onclick="setTab('runs')" title="Run history: open, pin, load a setup, compare"><span class="ti" aria-hidden="true">≡</span><span class="tl">Runs</span><span class="badge" id="s-runcount"></span></button>
+            </div>
+            <div class="seg views" id="s-views" aria-label="View"></div>
+            <select id="s-cmap" onchange="recolor()" aria-label="Colour palette"></select>
+            <span class="spacer"></span>
+            <button class="btn btn-ghost tbtn" id="s-probe" onclick="toggleProbe()" aria-pressed="false" aria-label="Probe" title="Click the field to read values, probe a point, or draw profiles (Shift/Alt-click)">📍<span class="tl"> Probe</span></button>
+            <div class="menu">
+              <button class="btn btn-ghost tbtn" id="s-exportbtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="s-exportmenu" aria-label="Export and zoom" onclick="toggleMenu('s-exportmenu', this)">⬇<span class="tl"> Export</span> ▾</button>
+              <div class="menupop right" id="s-exportmenu" role="menu" aria-label="Export and zoom" hidden>
+                <button role="menuitem" type="button" data-export="mp4">MP4 clip</button>
+                <button role="menuitem" type="button" data-export="gif">GIF clip</button>
+                <button role="menuitem" type="button" data-export="png">PNG of this frame</button>
+                <button role="menuitem" type="button" data-export="svg">Diagnostic plots (SVG)</button>
+                <button role="menuitem" type="button" data-export="csv">Time series (CSV)</button>
+                <button role="menuitem" type="button" data-export="npz">Fields with coordinates (NPZ)</button>
+                <button role="menuitem" type="button" data-export="report">Experiment report (HTML)</button>
+                <button role="menuitem" type="button" data-export="project">Setup file (JSON)</button>
+                <div class="menusep" role="separator"></div>
+                <button role="menuitem" type="button" data-export="options">Export and colour options…</button>
+                <div class="menusep" role="separator"></div>
+                <div class="zoomctl" role="group" aria-label="Zoom"><span class="menulabel">zoom</span><button class="linkbtn" type="button" onclick="zoomBy(1/1.15)" aria-label="Zoom out">−</button><span id="s-zoom" class="tlabel">100%</span><button class="linkbtn" type="button" onclick="zoomBy(1.15)" aria-label="Zoom in">＋</button><button class="linkbtn" type="button" onclick="zoomReset()" aria-label="Reset zoom">⟲</button></div>
+              </div>
+            </div>
+          </div>
+          <div class="xopts" id="x-opts" style="display:none">
+            <label>fps <input id="x-fps" type="number" min="1" max="60" value="26"></label>
+            <label>size × <input id="x-scale" type="number" min="0.25" max="4" step="0.25" value="1"></label>
+            <label>from <input id="x-t0" type="number" min="0" max="1" step="0.05" value="0"></label>
+            <label>to <input id="x-t1" type="number" min="0" max="1" step="0.05" value="1"></label>
+            <label>colour min <input id="x-vmin" type="text" placeholder="auto"></label>
+            <label>max <input id="x-vmax" type="text" placeholder="auto"></label>
+            <button class="linkbtn" type="button" onclick="applyLimits()">apply colour limits to the view</button>
+          </div>
+          <div class="screen glass" id="s-screen">
+            <video id="s-video" loop playsinline></video>
+            <img id="s-still" class="still" alt="" style="display:none">
+            <div class="hint" id="s-hint">Set the controls on the left, then Run ▶.<br>Switch views, palettes and tabs while the result plays.</div>
+            <div class="skel" id="s-skel">
+              <div class="msg" id="s-skelmsg">simulating…</div>
+              <div class="pbar"><div class="pfill" id="s-pfill"></div></div>
+            </div>
+            <div class="plots scroll" id="s-plotpanel" role="tabpanel" aria-labelledby="s-plots"></div>
+            <div class="plots scroll helppanel" id="s-help" role="tabpanel" aria-labelledby="tab-explain" style="display:none"></div>
+            <div class="plots scroll runspanel" id="s-runs" role="tabpanel" aria-labelledby="tab-runs" style="display:none"><div class="history" id="s-history"></div></div>
+            <div class="cmpinfo" id="s-cmpinfo" style="display:none" role="status"></div>
+          </div>
+          <div class="readouts" id="s-kpis" aria-label="Readouts"><div class="muted rhint">Readouts appear after a run.</div></div>
+        </div>
+
+        <div class="glass tile t-transport">
+          <div class="transport">
+            <button onclick="vSeek(0)" aria-label="Go to start">⏮</button>
+            <button onclick="vStep(-1)" aria-label="Previous frame">◀</button>
+            <button id="s-play" onclick="vToggle()" aria-label="Play or pause">▶</button>
+            <button onclick="vStep(1)" aria-label="Next frame">▶▶</button>
+            <input type="range" class="scrub" id="s-scrub" min="0" max="1000" value="0" oninput="vScrub()" aria-label="Playback position">
+            <span class="tlabel" id="s-time">0:00 / 0:00</span>
+            <span class="tlabel" id="s-simtime" title="simulation time of the frame on screen"></span>
+            <span class="muted" style="font-size:12px">speed</span>
+            <button onclick="vSpeed(-1)" aria-label="Slower">–</button><span class="tlabel" id="s-rate" style="min-width:34px">1×</span><button onclick="vSpeed(1)" aria-label="Faster">+</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="web/config.js"></script>
+<script src="web/web_backend.js"></script>
+<script src="web/logic.js"></script>
+<script src="web/app.js"></script>
+<script src="web/web_overrides.js"></script>
+</body>
+</html>
